@@ -61,7 +61,7 @@ class Discriminator(nn.Module):
         # (32,32) -> (16,16)
         self.conv4 = norm(nn.Conv2d(filters[2], filters[3], kernel_dim, **cnn_kwargs))
 
-        self.conv_out = nn.Conv2d(filters[3], 1, kernel_size=1, stride=1)
+        self.conv_out = nn.Conv2d(filters[3], im_channels, kernel_size=1, stride=1) # AMC modif 1 CHANNEL / nn.Conv2d(filters[3], 3, kernel_size=1, stride=1)
 
     def forward(self, x, y):
         """

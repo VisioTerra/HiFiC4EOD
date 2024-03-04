@@ -10,7 +10,9 @@ import numpy as np
 from skimage import color
 from . import pretrained_networks as pn
 from . import perceptual_loss as pl
-
+class imageType(object):
+    UINT8 = {"np_type":np.uint8,"cent":1.,"range":255.,"factor":255./2.}
+    UINT16 = {"np_type":np.uint16,"cent":1.,"range":65535.,"factor":65535./2.}
 def spatial_average(in_tens, keepdim=True):
     return in_tens.mean([2,3],keepdim=keepdim)
 
@@ -166,11 +168,32 @@ class DSSIM(FakeNet):
     def forward(self, in0, in1, retPerLayer=None):
         assert(in0.size()[0]==1) # currently only supports batchSize 1
 
-        if(self.colorspace=='RGB'):
-            value = pl.dssim(1.*pl.tensor2im(in0.data), 1.*pl.tensor2im(in1.data), range=255.).astype('float')
-        elif(self.colorspace=='Lab'):
-            value = pl.dssim(pl.tensor2np(pl.tensor2tensorlab(in0.data,to_norm=False)), 
-                pl.tensor2np(pl.tensor2tensorlab(in1.data,to_norm=False)), range=100.).astype('float')
+        # Check if in0 is 8-bit or 16-bit
+        if in0.dtype == torch.uint8:
+            # Traitement pour le cas 8 bits
+            print("-UINT8 image")
+            if (self.colorspace == 'RGB'):
+                print("--RGB")
+                value = pl.dssim(1. * pl.tensor2im(in0.data, ), 1. * pl.tensor2im(in1.data), range=255.).astype('float')
+            elif (self.colorspace == 'Lab'):
+                print("--LAB")
+                value = pl.dssim(pl.tensor2np(pl.tensor2tensorlab(in0.data, to_norm=False)),
+                                 pl.tensor2np(pl.tensor2tensorlab(in1.data, to_norm=False)), range=100.).astype('float')
+
+        """elif in0.dtype == torch.uint16:
+            # Traitement pour le cas 16 bits
+            print("UINT16")
+            if (self.colorspace == 'RGB'):
+                print("RGB")
+                value = pl.dssim(1. * pl.tensor2im(in0.data, imageType.UINT16["cent"], imageType.UINT16["factor"]),
+                                 1. * pl.tensor2im(in1.data, imageType.UINT16["cent"], imageType.UINT16["factor"]),
+                                 imageType.UINT16["range"]).astype('float')
+            elif (self.colorspace == 'Lab'):
+                print("LAB")
+                value = pl.dssim(pl.tensor2np(pl.tensor2tensorlab(in0.data, to_norm=False)),
+                                 pl.tensor2np(pl.tensor2tensorlab(in1.data, to_norm=False)), range=100.).astype('float')
+"""
+
         ret_var = Variable( torch.Tensor((value,) ) )
         if(self.use_gpu):
             ret_var = ret_var.cuda()

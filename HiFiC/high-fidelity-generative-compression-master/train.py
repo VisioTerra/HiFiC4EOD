@@ -151,12 +151,15 @@ def train(args, model, train_loader, test_loader, device, logger, optimizers):
 
             if model.step_counter % args.log_interval == 1:
                 epoch_loss.append(compression_loss.item())
+                print("epoch_loss = ", epoch_loss)
                 mean_epoch_loss = np.mean(epoch_loss)
-
+                print("mean_epoch_loss = ", mean_epoch_loss)
                 best_loss = utils.log(model, storage, epoch, idx, mean_epoch_loss, compression_loss.item(),
                                 best_loss, start_time, epoch_start_time, batch_size=data.shape[0],
                                 avg_bpp=bpp.mean().item(), logger=logger, writer=train_writer)
                 try:
+                    print("test_loader_iter = ", test_loader_iter)
+                    print("test_loader_iter.type = ", type(test_loader_iter))
                     test_data, test_bpp = next(test_loader_iter)
                 except StopIteration:
                     test_loader_iter = iter(test_loader)
@@ -228,6 +231,7 @@ if __name__ == '__main__':
     general.add_argument("-lt", "--likelihood_type", choices=('gaussian', 'logistic'), default='gaussian', help="Likelihood model for latents.")
     general.add_argument("-force_gpu", "--force_set_gpu", help="Set GPU to given ID", action="store_true")
     general.add_argument("-LMM", "--use_latent_mixture_model", help="Use latent mixture model as latent entropy model.", action="store_true")
+    #TODO implementer et verifier cette ligne : general.add_argument("-it", "--image_type", help="UINT8 ou UINT16", default=hific_args.image_type)
 
     # Optimization-related options
     optim_args = parser.add_argument_group("Optimization-related options")

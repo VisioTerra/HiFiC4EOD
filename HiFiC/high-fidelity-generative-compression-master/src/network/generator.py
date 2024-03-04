@@ -138,7 +138,7 @@ class Generator(nn.Module):
 
         self.conv_block_out = nn.Sequential(
             self.post_pad,
-            nn.Conv2d(filters[-1], 3, kernel_size=(7,7), stride=1),
+            nn.Conv2d(filters[-1], input_dims[0], kernel_size=(7,7), stride=1), # AMC modif 1 CHANNEL / nn.Conv2d(filters[-1], 3, kernel_size=(7,7), stride=1)
         )
 
 

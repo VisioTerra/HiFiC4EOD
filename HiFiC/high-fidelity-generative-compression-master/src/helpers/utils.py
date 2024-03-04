@@ -264,7 +264,7 @@ def load_model(save_path, logger, device, model_type=None, model_mode=None, curr
 
 def logger_setup(logpath, filepath, package_files=[]):
     formatter = logging.Formatter('%(asctime)s %(levelname)s - %(funcName)s: %(message)s', 
-                                  "%H:%M:%S")
+                                  "%H_%M_%S")
     logger = logging.getLogger(__name__)
     logger.setLevel('INFO'.upper())
 

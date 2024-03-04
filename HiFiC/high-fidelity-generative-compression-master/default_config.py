@@ -6,7 +6,12 @@ command line arguments in `train.py`.
 
 [1]: arXiv 2006.09965
 """
-
+#TODO verifier si c'est bien nécéssaire, pour le moment, cette classe est dans perceptual loss et uniquement la
+"""class imageType(object):
+    UINT8 = {"np_type":np.uint8,"cent":1.,"range":255.,"factor":255./2.}
+    UINT16 = {"np_type":np.uint16,"cent":1.,"range":65535.,"factor":65535./2.}
+    #UINT32 = [np.uint32,,4294967295]
+    #UINT64 = [np.uint64,,18446744073709551615]"""
 class ModelTypes(object):
     COMPRESSION = 'compression'
     COMPRESSION_GAN = 'compression_gan'
@@ -20,16 +25,30 @@ class Datasets(object):
     # path are made from high-fidelity-generative-compression
     # (you have to cd high-fidelity-generative-compression> before using train.py
 
-    OID7_RGB_10 = 'OID7_RGB_10'
-    OID7_RGB_100 = 'OID7_RGB_100'
+    OID7_RGB8_10 = 'OID7_RGB8_10'
+    OID7_RGB8_100 = 'OID7_RGB8_100'
+    OID7_RGB8_1000 = 'OID7_RGB8_1000'
+    OID7_RGB8_10000 = 'OID7_RGB8_10000'
+
+    OID7_L8_100 = 'OID7_L8_100'
+    OID7_L8_1000 = 'OID7_L8_1000'
+    OID7_L8_10000 = 'OID7_L8_10000'
 
     OPENIMAGES = 'openimages'
     CITYSCAPES = 'cityscapes'
     JETS = 'jetimages'
 
 class DatasetPaths(object):
-    OID7_RGB_10 = 'data/datasets/OID7_RGB_10'
-    OID7_RGB_100 = 'data/datasets/OID7_RGB_100'
+
+    OID7_RGB8_10 = 'data/datasets/OID7_RGB8_10'
+    OID7_RGB8_100 = 'data/datasets/OID7_RGB8_100'
+    OID7_RGB8_1000 = 'data/datasets/OID7_RGB8_1000'
+    OID7_RGB8_10000 = 'data/datasets/OID7_RGB8_10000'
+
+    OID7_L8_100 = 'data/datasets/OID7_L8_100'
+    OID7_L8_1000 = 'data/datasets/OID7_L8_1000'
+    OID7_L8_10000 = 'data/datasets/OID7_L8_10000'
+
     OPENIMAGES = 'data/openimages'
     CITYSCAPES = ''
     JETS = ''
@@ -41,17 +60,17 @@ class args(object):
     """
     Shared config
     """
-    name = 'hific_v0.1'
+    name = 'OID7_L8_100'
     silent = True
-    n_epochs = 8
+    n_epochs = 8 #each epoch will train images on (number of images in train/4, ex : 2500/epoch for 10000 img training dataset
     n_steps = 1e6
     batch_size = 4
-    log_interval = 1000
+    log_interval = 1000#images between each log, need to have enough images in validation to work (otherwise create a next() iter error.
     save_interval = 50000
     gpu = 0
     multigpu = True
-    dataset = Datasets.OID7_RGB_10
-    dataset_path = DatasetPaths.OID7_RGB_10
+    dataset = Datasets.OID7_L8_100
+    dataset_path = DatasetPaths.OID7_L8_100
     shuffle = True
 
     # GAN params
@@ -73,7 +92,7 @@ class args(object):
     
     # Shapes
     crop_size = 256
-    image_dims = (3,256,256)
+    image_dims = (1,crop_size,crop_size)
     latent_dims = (latent_channels,16,16)
     
     # Optimizer params
