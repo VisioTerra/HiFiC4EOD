@@ -1,3 +1,8 @@
 pytorch_nightly_venv/Lib/*
 pytorch_nightly_venv/Scripts/*
 pytorch_nightly_venv/share/*
+/VT_utilities/image_converter/input/*
+/VT_utilities/image_converter/output/*
+/VT_utilities/images_infos_getter/inputs/*
+/VT_utilities/open_images_dataset_downloader/input/*
+/VT_utilities/open_images_dataset_downloader/output/*
