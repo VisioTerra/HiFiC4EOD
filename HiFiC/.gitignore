@@ -1,0 +1,3 @@
+pytorch_nightly_venv/Lib/*
+pytorch_nightly_venv/Scripts/*
+pytorch_nightly_venv/share/*

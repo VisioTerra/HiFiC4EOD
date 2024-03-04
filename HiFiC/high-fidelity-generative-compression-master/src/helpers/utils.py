@@ -1,15 +1,14 @@
+import datetime
+import itertools
+import json
+import logging
+import os
+import time
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
-
-import numpy as np
-import json
-import os, time, datetime
-import logging
-import itertools
-
-from collections import OrderedDict
 from torchvision.utils import save_image
 
 META_FILENAME = "metadata.json"
@@ -131,7 +130,7 @@ def save_model(model, optimizers, mean_epoch_loss, epoch, device, args, logger, 
     metadata = dict(image_dims=args.image_dims, epoch=epoch, steps=model.step_counter)
     args_d = dict((n, getattr(args, n)) for n in dir(args) if not (n.startswith('_') or 'logger' in n))
     metadata.update(args_d)
-    timestamp = '{:%Y_%m_%d_%H:%M}'.format(datetime.datetime.now())
+    timestamp = '{:%Y_%m_%d_%H_%M}'.format(datetime.datetime.now())
     args_d['timestamp'] = timestamp
     
     model_name = args.name
@@ -145,7 +144,7 @@ def save_model(model, optimizers, mean_epoch_loss, epoch, device, args, logger, 
     model_path = os.path.join(directory, '{}_epoch{}_idx{}_{}.pt'.format(model_name, epoch, model.step_counter, timestamp))
 
     if os.path.exists(model_path):
-        model_path = os.path.join(directory, '{}_epoch{}_idx{}_{:%Y_%m_%d_%H:%M:%S}.pt'.format(model_name, epoch, model.step_counter, datetime.datetime.now()))
+        model_path = os.path.join(directory, '{}_epoch{}_idx{}_{:%Y_%m_%d_%H_%M_%S}.pt'.format(model_name, epoch, model.step_counter, datetime.datetime.now()))
 
     save_dict = {   'model_state_dict': model.module.state_dict() if args.multigpu is True else model.state_dict(),
                     'compression_optimizer_state_dict': optimizers['amort'].state_dict(),

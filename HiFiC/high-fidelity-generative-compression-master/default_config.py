@@ -17,11 +17,19 @@ class ModelModes(object):
     EVALUATION = 'evaluation'  # actual entropy coding
 
 class Datasets(object):
+    # path are made from high-fidelity-generative-compression
+    # (you have to cd high-fidelity-generative-compression> before using train.py
+
+    OID7_RGB_10 = 'OID7_RGB_10'
+    OID7_RGB_100 = 'OID7_RGB_100'
+
     OPENIMAGES = 'openimages'
     CITYSCAPES = 'cityscapes'
     JETS = 'jetimages'
 
 class DatasetPaths(object):
+    OID7_RGB_10 = 'data/datasets/OID7_RGB_10'
+    OID7_RGB_100 = 'data/datasets/OID7_RGB_100'
     OPENIMAGES = 'data/openimages'
     CITYSCAPES = ''
     JETS = ''
@@ -37,13 +45,13 @@ class args(object):
     silent = True
     n_epochs = 8
     n_steps = 1e6
-    batch_size = 8
+    batch_size = 4
     log_interval = 1000
     save_interval = 50000
     gpu = 0
     multigpu = True
-    dataset = Datasets.OPENIMAGES
-    dataset_path = DatasetPaths.OPENIMAGES
+    dataset = Datasets.OID7_RGB_10
+    dataset_path = DatasetPaths.OID7_RGB_10
     shuffle = True
 
     # GAN params

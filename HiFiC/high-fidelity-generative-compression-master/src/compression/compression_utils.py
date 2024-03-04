@@ -1,16 +1,16 @@
-import torch
-import math
-import numpy as np
 import functools
+import math
 import os
-import autograd.numpy as np
-
-from autograd import make_vjp
-from autograd.extend import vspace, VSpace
 from collections import namedtuple
 
-from src.helpers import utils
+import autograd.numpy as np
+import numpy as np
+import torch
+from autograd import make_vjp
+from autograd.extend import vspace, VSpace
 from src.compression import entropy_coding
+from src.helpers import utils
+
 
 # Random bits for fencing in bitstream
 _MAGIC_VALUE_SEP = b'\x46\xE2\x84\x92'

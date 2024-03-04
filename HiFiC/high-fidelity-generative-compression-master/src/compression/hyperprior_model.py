@@ -1,3 +1,7 @@
+import sys
+
+sys.path.insert(0, '../..')
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,8 +10,8 @@ from tqdm import tqdm
 
 # Custom
 from src.helpers import maths, utils
-from src.compression import entropy_models, entropy_coding
-from src.compression import compression_utils
+from . import entropy_models, entropy_coding
+from . import compression_utils
 
 MIN_SCALE = entropy_models.MIN_SCALE
 MIN_LIKELIHOOD = entropy_models.MIN_LIKELIHOOD

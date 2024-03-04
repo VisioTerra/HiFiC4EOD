@@ -157,7 +157,7 @@ def train(args, model, train_loader, test_loader, device, logger, optimizers):
                                 best_loss, start_time, epoch_start_time, batch_size=data.shape[0],
                                 avg_bpp=bpp.mean().item(), logger=logger, writer=train_writer)
                 try:
-                    test_data, test_bpp = test_loader_iter.next()
+                    test_data, test_bpp = next(test_loader_iter)
                 except StopIteration:
                     test_loader_iter = iter(test_loader)
                     test_data, test_bpp = test_loader_iter.next()
@@ -184,16 +184,19 @@ def train(args, model, train_loader, test_loader, device, logger, optimizers):
                 ckpt_path = utils.save_model(model, optimizers, mean_epoch_loss, epoch, device, args=args, logger=logger)
 
         # End epoch
+        print("end of epoch ")
         mean_epoch_loss = np.mean(epoch_loss)
         mean_epoch_test_loss = np.mean(epoch_test_loss)
-
+        print("epoch_loss = ", epoch_loss)
+        print("mean_epoch_loss = ", mean_epoch_loss)
         logger.info('===>> Epoch {} | Mean train loss: {:.3f} | Mean test loss: {:.3f}'.format(epoch, 
             mean_epoch_loss, mean_epoch_test_loss))    
 
         if model.step_counter > args.n_steps:
             break
-    
-    with open(os.path.join(args.storage_save, 'storage_{}_{:%Y_%m_%d_%H:%M:%S}.pkl'.format(args.name, datetime.datetime.now())), 'wb') as handle:
+    output_name = 'storage_{}_{:%Y_%m_%d_%H_%M_%S}.pkl'.format(args.name, datetime.datetime.now())
+    print("output name = ", output_name)
+    with open(os.path.join(args.storage_save, output_name), 'wb') as handle:
         pickle.dump(storage, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
     ckpt_path = utils.save_model(model, optimizers, mean_epoch_loss, epoch, device, args=args, logger=logger)

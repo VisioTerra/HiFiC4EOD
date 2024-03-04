@@ -23,17 +23,17 @@ from default_config import args as default_args
 File = namedtuple('File', ['original_path', 'compressed_path',
                            'compressed_num_bytes', 'bpp'])
 
-def make_deterministic(seed=42):
 
+def make_deterministic(seed=42):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False  # Don't go fast boi :(
-    
+
     np.random.seed(seed)
 
-def prepare_dataloader(args, input_dir, output_dir, batch_size=1):
 
+def prepare_dataloader(args, input_dir, output_dir, batch_size=1):
     # `batch_size` must be 1 for images of different shapes
     input_images = glob.glob(os.path.join(input_dir, '*.jpg'))
     input_images += glob.glob(os.path.join(input_dir, '*.png'))
@@ -47,13 +47,14 @@ def prepare_dataloader(args, input_dir, output_dir, batch_size=1):
 
     return eval_loader
 
-def prepare_model(ckpt_path, input_dir):
 
+def prepare_model(ckpt_path, input_dir):
     make_deterministic()
     device = utils.get_device()
-    logger = utils.logger_setup(logpath=os.path.join(input_dir, f'logs_{time.time()}'), filepath=os.path.abspath(__file__))
+    logger = utils.logger_setup(logpath=os.path.join(input_dir, f'logs_{time.time()}'),
+                                filepath=os.path.abspath(__file__))
     loaded_args, model, _ = utils.load_model(ckpt_path, logger, device, model_mode=ModelModes.EVALUATION,
-        current_args_d=None, prediction=True, strict=False, silent=True)
+                                             current_args_d=None, prediction=True, strict=False, silent=True)
     model.logger.info('Model loaded from disk.')
 
     # Build probability tables
@@ -62,6 +63,7 @@ def prepare_model(ckpt_path, input_dir):
     model.logger.info('All tables built.')
 
     return model, loaded_args
+
 
 def compress_and_save(model, args, data_loader, output_dir):
     # Compress and save compressed format to disk
@@ -79,7 +81,7 @@ def compress_and_save(model, args, data_loader, output_dir):
 
             out_path = os.path.join(output_dir, f"{filenames[0]}_compressed.hfc")
             actual_bpp, theoretical_bpp = compression_utils.save_compressed_format(compressed_output,
-                out_path=out_path)
+                                                                                   out_path=out_path)
             model.logger.info(f'Attained: {actual_bpp:.3f} bpp vs. theoretical: {theoretical_bpp:.3f} bpp.')
 
 
@@ -98,8 +100,8 @@ def load_and_decompress(model, compressed_format_path, out_path):
 
     return reconstruction
 
-def compress_and_decompress(args):
 
+def compress_and_decompress(args):
     # Reproducibility
     make_deterministic()
     perceptual_loss_fn = ps.PerceptualLoss(model='net-lin', net='alex', use_gpu=torch.cuda.is_available())
@@ -108,7 +110,7 @@ def compress_and_decompress(args):
     device = utils.get_device()
     logger = utils.logger_setup(logpath=os.path.join(args.image_dir, 'logs'), filepath=os.path.abspath(__file__))
     loaded_args, model, _ = utils.load_model(args.ckpt_path, logger, device, model_mode=ModelModes.EVALUATION,
-        current_args_d=None, prediction=True, strict=False)
+                                             current_args_d=None, prediction=True, strict=False)
 
     # Override current arguments with recorded
     dictify = lambda x: dict((n, getattr(x, n)) for n in dir(x) if not (n.startswith('__') or 'logger' in n))
@@ -122,7 +124,6 @@ def compress_and_decompress(args):
     model.Hyperprior.hyperprior_entropy_model.build_tables()
     logger.info('All tables built.')
 
-
     eval_loader = datasets.get_dataloaders('evaluation', root=args.image_dir, batch_size=args.batch_size,
                                            logger=logger, shuffle=False, normalize=args.normalize_input_image)
 
@@ -133,7 +134,7 @@ def compress_and_decompress(args):
     MS_SSIM_total, PSNR_total = torch.Tensor(N), torch.Tensor(N)
     max_value = 255.
     MS_SSIM_func = metrics.MS_SSIM(data_range=max_value)
-    utils.makedirs(args.output_dir) 
+    utils.makedirs(args.output_dir)
 
     logger.info('Starting compression...')
     start_time = time.time()
@@ -141,27 +142,58 @@ def compress_and_decompress(args):
     with torch.no_grad():
 
         for idx, (data, bpp, filenames) in enumerate(tqdm(eval_loader), 0):
+            # Ensure the data is on the specified device and has the correct data type
             data = data.to(device, dtype=torch.float)
             B = data.size(0)
             input_filenames_total.extend(filenames)
 
+            # permet d'avoir la reconstruction sans sauvegarder la version compressée
             if args.reconstruct is True:
                 # Reconstruction without compression
+                # Enregistre le temps avant l'exécution du code
+                temps_debut = time.time()
                 reconstruction, q_bpp = model(data, writeout=False)
+                # Enregistre le temps après l'exécution du code
+                temps_fin = time.time()
+
+                # Calcule la différence de temps
+                temps_execution = temps_fin - temps_debut
+
+                logger.info(
+                    f"Le temps d'exécution est de {temps_execution} secondes pour la compression decompression.")
             else:
                 # Perform entropy coding
+                # Enregistre le temps avant l'exécution du code
+                temps_debut = time.time()
+
                 compressed_output = model.compress(data)
 
+                # Save the compressed format if specified
                 if args.save is True:
                     assert B == 1, 'Currently only supports saving single images.'
-                    compression_utils.save_compressed_format(compressed_output, 
-                        out_path=os.path.join(args.output_dir, f"{filenames[0]}_compressed.hfc"))
+                    compression_utils.save_compressed_format(compressed_output,
+                                                             out_path=os.path.join(args.output_dir,
+                                                                                   f"{filenames[0]}_compressed.hfc"))
 
+                # Enregistre le temps après l'exécution du code
+                temps_fin = time.time()
+                temps_execution = temps_fin - temps_debut
+                logger.info(f"Le temps d'exécution est de {temps_execution} secondes pour la compression.")
+
+                # Enregistre le temps avant l'exécution du code
+                temps_debut = time.time()
+                # Decompress the compressed output to obtain the reconstruction
                 reconstruction = model.decompress(compressed_output)
+                # Enregistre le temps après l'exécution du code
+                temps_fin = time.time()
+                temps_execution = temps_fin - temps_debut
+                logger.info(f"Le temps d'exécution est de {temps_execution} secondes pour la décompression.")
+                # Get the total bits per pixel (q_bpp) from the compressed output
                 q_bpp = compressed_output.total_bpp
 
             if args.normalize_input_image is True:
                 # [-1., 1.] -> [0., 1.]
+                # Map values from the range [-1., 1.] to [0., 1.]
                 data = (data + 1.) / 2.
 
             perceptual_loss = perceptual_loss_fn.forward(reconstruction, data, normalize=True)
@@ -210,18 +242,18 @@ def compress_and_decompress(args):
 
 
 def main(**kwargs):
-
     description = "Compresses batch of images using learned model specified via -ckpt argument."
     parser = argparse.ArgumentParser(description=description,
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-ckpt", "--ckpt_path", type=str, required=True, help="Path to model to be restored")
     parser.add_argument("-i", "--image_dir", type=str, default='data/originals',
-        help="Path to directory containing images to compress")
-    parser.add_argument("-o", "--output_dir", type=str, default='data/reconstructions', 
-        help="Path to directory to store output images")
+                        help="Path to directory containing images to compress")
+    parser.add_argument("-o", "--output_dir", type=str, default='data/reconstructions',
+                        help="Path to directory to store output images")
     parser.add_argument('-bs', '--batch_size', type=int, default=1,
-        help="Loader batch size. Set to 1 if images in directory are different sizes.")
-    parser.add_argument("-rc", "--reconstruct", help="Reconstruct input image without compression.", action="store_true")
+                        help="Loader batch size. Set to 1 if images in directory are different sizes.")
+    parser.add_argument("-rc", "--reconstruct", help="Reconstruct input image without compression.",
+                        action="store_true")
     parser.add_argument("-save", "--save", help="Save compressed format to disk.", action="store_true")
     parser.add_argument("-metrics", "--metrics", help="Evaluate compression metrics.", action="store_true")
     args = parser.parse_args()
@@ -233,8 +265,8 @@ def main(**kwargs):
 
     print('Input images')
     pprint(input_images)
-
     compress_and_decompress(args)
+
 
 if __name__ == '__main__':
     main()
