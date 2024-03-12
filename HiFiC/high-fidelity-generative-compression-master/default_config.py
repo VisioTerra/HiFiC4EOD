@@ -9,8 +9,7 @@ command line arguments in `train.py`.
 import numpy as np
 
 
-# TODO verifier si c'est bien nécéssaire, pour le moment, cette classe est dans perceptual loss et uniquement la
-class DatasetType(object):
+class DataType(object):
     # used for output formating and saving, when dtype is none : used for 3chan 8bit OUTPUT
     # mainly used in compress for saving, and in
     RGB8 = {"dtype": None, "np_type": "np.uint8", "cent": 1., "range": 255., "factor": 255. / 2., "ndim":3}
@@ -105,7 +104,7 @@ class args(object):
     multigpu = False
     dataset = Datasets.OID7_L16_10000
     dataset_path = DatasetPaths.OID7_L16_10000
-    data_type = DatasetType.L16
+    data_type = DataType.RGB8
     shuffle = True
 
     # GAN params

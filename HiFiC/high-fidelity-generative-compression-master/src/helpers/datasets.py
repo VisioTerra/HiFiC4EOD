@@ -63,7 +63,7 @@ def exception_collate_fn(batch):
 
 
 def get_dataloaders(dataset, mode='train', root=None, shuffle=True, pin_memory=True,
-                    batch_size=8, logger=logging.getLogger(__name__), normalize=False,data_type=None, **kwargs):
+                    batch_size=8, logger=logging.getLogger(__name__), normalize=False,datatype= None, **kwargs):
     """A generic data loader
 
     Parameters
@@ -81,9 +81,9 @@ def get_dataloaders(dataset, mode='train', root=None, shuffle=True, pin_memory=T
     Dataset = get_dataset(dataset)
 
     if root is None:
-        dataset = Dataset(logger=logger, mode=mode, normalize=normalize,dtype=data_type, **kwargs)
+        dataset = Dataset(logger=logger, mode=mode, normalize=normalize,datatype=datatype, **kwargs)
     else:
-        dataset = Dataset(root=root, logger=logger, mode=mode, normalize=normalize,dtype=data_type, **kwargs)
+        dataset = Dataset(root=root, logger=logger, mode=mode, normalize=normalize,datatype=datatype, **kwargs)
 
     return DataLoader(dataset,
                       batch_size=batch_size,
@@ -129,7 +129,7 @@ class BaseDataset(Dataset, abc.ABC):
         return tuple(self.imgs.size())
 
     @abc.abstractmethod
-    def __getitem__(self, idx, dtype=None):
+    def __getitem__(self, idx):
         """Get the image of `idx`.
 
         Return
@@ -149,12 +149,12 @@ class Evaluation(BaseDataset):
 
     """
 
-    def __init__(self, root=os.path.join(DIR, 'data'), normalize=False, **kwargs):
+    def __init__(self, root=os.path.join(DIR, 'data'), normalize=False, datatype = None, **kwargs):
         super().__init__(root, [transforms.ToTensor()], **kwargs)
 
         self.imgs = glob.glob(os.path.join(root, '*.jpg'))
         self.imgs += glob.glob(os.path.join(root, '*.png'))
-
+        self.datatype = datatype
         self.normalize = normalize
 
     def _transforms(self):
@@ -169,7 +169,7 @@ class Evaluation(BaseDataset):
 
         return transforms.Compose(transforms_list)
 
-    def __getitem__(self, idx, dtype=None):
+    def __getitem__(self, idx):
         """ TODO: This definitely needs to be optimized.
         Get the image of `idx`
 
@@ -198,12 +198,15 @@ class Evaluation(BaseDataset):
 
             test_transform = self._transforms()
             transformed = test_transform(img)
-            print("dataset_type = ",dtype)
+            print("dataset_type = ",self.datatype)
+            match  self.datatype["dtype"] :
+                case "L16" :
+                    print("datatype = L16, totensor wont normalize, so we do it")
+                    transformed = transformed/(255*255)
+                case _:
+                    print("datatype = default, we do nothing")
 
-            """ if args.dataset_type["dtype"] == "L16" :
-                #print("datatype = L16, we normalize without totensor")
-                transformed = transformed/(255*255)"""
-            transformed = transformed / (255 * 255)
+
             #else:
             #print("datatype != L16 normalization done through totensor")
         except:

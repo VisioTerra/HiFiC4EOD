@@ -24,7 +24,8 @@ def convertir_images(input_folder, output_folder):
             print("img = ", img)
             print("new img =", new_img)"""
 
-            output_path = os.path.join(output_folder, filename.split(".")[0], ".png")
+            output_path = os.path.join(output_folder, filename.split(".")[0]+".png")
+            #print("output path = ",output_path)
             new_img.save(output_path, bitmap_format="png")
 
 
@@ -32,6 +33,6 @@ def convertir_images(input_folder, output_folder):
 
 # Utilisation de la fonction avec les dossiers d'entrée et de sortie spécifiés
 folder = "/train"
-input_folder = "input"
-output_folder = "output"
+input_folder = "input/test/"
+output_folder = "output/test/"
 convertir_images(input_folder, output_folder)

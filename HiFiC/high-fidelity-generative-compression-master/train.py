@@ -231,7 +231,7 @@ if __name__ == '__main__':
     general.add_argument("-lt", "--likelihood_type", choices=('gaussian', 'logistic'), default='gaussian', help="Likelihood model for latents.")
     general.add_argument("-force_gpu", "--force_set_gpu", help="Set GPU to given ID", action="store_true")
     general.add_argument("-LMM", "--use_latent_mixture_model", help="Use latent mixture model as latent entropy model.", action="store_true")
-    #TODO implementer et verifier cette ligne : general.add_argument("-it", "--image_type", help="UINT8 ou UINT16", default=hific_args.image_type)
+    general.add_argument("-dt", "--data_type", help="RGB8, LLL8, L8 ou L16", default=hific_args.data_type)
 
     # Optimization-related options
     optim_args = parser.add_argument_group("Optimization-related options")
@@ -354,6 +354,5 @@ if __name__ == '__main__':
     model, ckpt_path = train(args, model, train_loader, test_loader, device, logger, optimizers=optimizers)
 
     """
-    TODO
-    Generate metrics
+    TODO  Generate metrics
     """

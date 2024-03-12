@@ -45,9 +45,9 @@ pip install scipy==1.5.2
 pip install scipy
 Requirement already satisfied: scipy in d:\visioterra\technique\p382_esrin_copex-dcc\engineering\hific\pytorch_nightly\lib\site-packages (1.12.0)
 ```
-pip install torch==1.6.0 ne fonctionne pas
+pip install torch==1.6.0 ne fonctionne pas -> version de torch faite pour pytorch nightly + GPU
 ```python
-pip install torch
+pip --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121
 already satisfied
 ```
 pip install torchvision==0.7.0 ne fonctionne pas

@@ -131,14 +131,14 @@ def compress_and_decompress(args):
     logger.info('All tables built.')
 
     eval_loader = datasets.get_dataloaders('evaluation', root=args.image_dir, batch_size=args.batch_size,
-                                           logger=logger, shuffle=False, normalize=args.normalize_input_image)
+                                           logger=logger, shuffle=False, normalize=args.normalize_input_image, datatype=args.data_type)
 
     n, N = 0, len(eval_loader.dataset)
     input_filenames_total = list()
     output_filenames_total = list()
     bpp_total, q_bpp_total, LPIPS_total = torch.Tensor(N), torch.Tensor(N), torch.Tensor(N)
     MS_SSIM_total, PSNR_total = torch.Tensor(N), torch.Tensor(N)
-    max_value = 255. #TODO verifier cet element et le modifier en fonction du datatype
+    max_value = 255. #args.data_type["range"] #l'original et le reconstruct son multipliés par range
     MS_SSIM_func = metrics.MS_SSIM(data_range=max_value)
     utils.makedirs(args.output_dir)
 
@@ -207,7 +207,7 @@ def compress_and_decompress(args):
             perceptual_loss = perceptual_loss_fn.forward(reconstruction, data, normalize=True)
 
             if args.metrics is True:
-                # [0., 1.] -> [0., 255.]
+                # [0., 1.] -> [0., 255.] ou  [0., 255*255]
                 psnr = metrics.psnr(reconstruction.cpu().numpy() * max_value, data.cpu().numpy() * max_value, max_value)
                 ms_ssim = MS_SSIM_func(reconstruction * max_value, data * max_value)
                 PSNR_total[n:n + B] = torch.Tensor(psnr)
@@ -220,9 +220,8 @@ def compress_and_decompress(args):
                     q_bpp_per_im = float(q_bpp.item()) if type(q_bpp) == torch.Tensor else float(q_bpp)
 
                 fname = os.path.join(args.output_dir, "{}_RECON_{:.3f}bpp.png".format(filenames[subidx], q_bpp_per_im))
-                #TODO save must be done for special format (for example : L8 or L16)
                 #torchvision.utils.save_image(reconstruction[subidx], fname, normalize=True)
-                save_image_custom(reconstruction[subidx], fname, output_mode="L16", normalize=True)
+                save_image_custom(reconstruction[subidx], fname, output_mode=args.data_type["dtype"], normalize=True)
                 output_filenames_total.append(fname)
 
             bpp_total[n:n + B] = bpp.data
@@ -280,7 +279,7 @@ def save_image_custom(
     match output_mode:
         case None :
             # Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer
-            print("---save_image_custom ndarr before modif = ", grid.to("cpu").numpy())
+            print("---save_image_custom DEFAULT ndarr before modif = ", grid.to("cpu").numpy())
             print("---save_image_custom ndarr before modif shape = ", grid.to("cpu").numpy().shape)
             ndarr = grid.mul(255).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
             print("---save_image_custom ndarr after modif = ", ndarr)
@@ -288,9 +287,9 @@ def save_image_custom(
             im = Image.fromarray(ndarr)
         case "L8" :
             # Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer
-            print("---save_image_custom ndarr before modif = ", grid.to("cpu").numpy())
+            print("---save_image_custom L8 ndarr before modif = ", grid.to("cpu").numpy())
             print("---save_image_custom ndarr before modif shape = ", grid.to("cpu").numpy().shape)
-            ndarr = (grid.mul(255)/3).sum(dim=0).clamp_(0, 255).to("cpu", torch.uint8).numpy()
+            ndarr = (grid[0].mul(255 * 255)).clamp_(0, 255).to("cpu", torch.uint8).numpy()
             print("---save_image_custom ndarr after modif = ",ndarr)
             print("---save_image_custom ndarr after modif shape = ", ndarr.shape)
             """if ndarr.shape[-1] > 1:
@@ -298,8 +297,7 @@ def save_image_custom(
             im = Image.fromarray(ndarr, mode="L")
         case "L16" :
             # Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer
-            print("---save_image_custom decompression to L16")
-            print("---save_image_custom ndarr before modif = ", grid.to("cpu").numpy())
+            print("---save_image_custom L16 ndarr before modif = ", grid.to("cpu").numpy())
             print("---save_image_custom ndarr before modif shape = ", grid.to("cpu").numpy().shape)
             ndarr = (grid[0].mul(255 * 255)).clamp_(0, 255 * 255).to("cpu", torch.uint16).numpy()
             #ndarr = (grid.mul(255*255)/3).sum(dim=0).add_(0.5).clamp_(0, 255*255).to("cpu", torch.uint16).numpy()
@@ -323,6 +321,8 @@ def main(**kwargs):
                         action="store_true")
     parser.add_argument("-save", "--save", help="Save compressed format to disk.", action="store_true")
     parser.add_argument("-metrics", "--metrics", help="Evaluate compression metrics.", action="store_true")
+    parser.add_argument("-dt", "--data_type", help="RGB8, LLL8, L8 ou L16", default=hific_args.data_type)
+
     args = parser.parse_args()
 
     input_images = glob.glob(os.path.join(args.image_dir, '*.jpg'))
