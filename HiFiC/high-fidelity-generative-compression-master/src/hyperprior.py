@@ -227,6 +227,12 @@ class Hyperprior(CodingModel):
         latent_bits, latent_bpp, latent_bpi = latent_agg
 
         # What the decoder needs for reconstruction
+        """print("compress_forward -- compression_output informations : ")
+        print("hyperlatent_spatial_shape=", hyperlatent_spatial_shape)
+        print("spatial_shape=", spatial_shape)
+        print("hyper_coding_shape=", hyper_coding_shape)
+        print("latent_coding_shape=", latent_coding_shape)
+        print("batch_shape=", batch_shape)"""
         compression_output = CompressionOutput(
             hyperlatents_encoded=hyperlatents_encoded,
             latents_encoded=latents_encoded,
@@ -251,7 +257,9 @@ class Hyperprior(CodingModel):
         latents_encoded = compression_output.latents_encoded
         hyperlatent_spatial_shape = compression_output.hyperlatent_spatial_shape
         batch_shape = compression_output.batch_shape
-
+        """print("decompress_forward -- hyperlatents_decoded informations : ")
+        print("hyperlatent_spatial_shape=", hyperlatent_spatial_shape)
+        print("batch_shape=", batch_shape)"""
         # Decompress hyperlatents
         hyperlatents_decoded, _ = self.hyperprior_entropy_model.decompress(hyperlatents_encoded,
             batch_shape=batch_shape, broadcast_shape=hyperlatent_spatial_shape,
@@ -264,7 +272,7 @@ class Hyperprior(CodingModel):
         latent_scales = self.synthesis_std(hyperlatents_decoded)
         latent_scales = lower_bound_toward(latent_scales, self.scale_lower_bound)
         latent_spatial_shape = latent_scales.size()[2:]
-
+        print("latent_spatial_shape=", latent_spatial_shape)
         # Use latent statistics to build indexed probability tables, and decompress latents
         latents_decoded, _ = self.prior_entropy_model.decompress(latents_encoded, means=latent_means,
             scales=latent_scales, broadcast_shape=latent_spatial_shape,

@@ -29,6 +29,8 @@ class Encoder(nn.Module):
 
         # Images downscaled to 500 x 1000 + randomly cropped to 256 x 256
         im_channels = image_dims[0]
+        print("im_c in encoder = ",im_channels)
+        print("image_dims in encoder = ", image_dims)
         # assert image_dims == (im_channels, 256, 256), 'Crop image to 256 x 256!'
 
         # Layer / normalization options

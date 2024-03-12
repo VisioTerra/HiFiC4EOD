@@ -1,3 +1,5 @@
+import pathlib
+
 import numpy as np
 import pandas as pd
 import os, glob, time
@@ -5,6 +7,9 @@ import logging, argparse
 import functools
 
 from pprint import pprint
+
+from PIL import Image
+from torchvision.utils import make_grid, _log_api_usage_once
 from tqdm import tqdm, trange
 from collections import defaultdict, namedtuple
 
@@ -19,6 +24,7 @@ from src.compression import compression_utils
 from src.loss.perceptual_similarity import perceptual_loss as ps
 from default_config import hific_args, mse_lpips_args, directories, ModelModes, ModelTypes
 from default_config import args as default_args
+from typing import Any, BinaryIO, List, Optional, Tuple, Union
 
 File = namedtuple('File', ['original_path', 'compressed_path',
                            'compressed_num_bytes', 'bpp'])
@@ -38,7 +44,7 @@ def prepare_dataloader(args, input_dir, output_dir, batch_size=1):
     input_images = glob.glob(os.path.join(input_dir, '*.jpg'))
     input_images += glob.glob(os.path.join(input_dir, '*.png'))
     assert len(input_images) > 0, 'No valid image files found in supplied directory!'
-    print('Input images')
+    #print('Input images')
     pprint(input_images)
 
     eval_loader = datasets.get_dataloaders('evaluation', root=input_dir, batch_size=batch_size,
@@ -132,7 +138,7 @@ def compress_and_decompress(args):
     output_filenames_total = list()
     bpp_total, q_bpp_total, LPIPS_total = torch.Tensor(N), torch.Tensor(N), torch.Tensor(N)
     MS_SSIM_total, PSNR_total = torch.Tensor(N), torch.Tensor(N)
-    max_value = 255.
+    max_value = 255. #TODO verifier cet element et le modifier en fonction du datatype
     MS_SSIM_func = metrics.MS_SSIM(data_range=max_value)
     utils.makedirs(args.output_dir)
 
@@ -152,7 +158,7 @@ def compress_and_decompress(args):
                 # Reconstruction without compression
                 # Enregistre le temps avant l'exécution du code
                 temps_debut = time.time()
-                reconstruction, q_bpp = model(data, writeout=False)
+                reconstruction, q_bpp = model(data, writeout=False,args=args)
                 # Enregistre le temps après l'exécution du code
                 temps_fin = time.time()
 
@@ -184,6 +190,8 @@ def compress_and_decompress(args):
                 temps_debut = time.time()
                 # Decompress the compressed output to obtain the reconstruction
                 reconstruction = model.decompress(compressed_output)
+                print("--compress_and_decompress reconstruction shape :", reconstruction.shape)
+
                 # Enregistre le temps après l'exécution du code
                 temps_fin = time.time()
                 temps_execution = temps_fin - temps_debut
@@ -212,7 +220,9 @@ def compress_and_decompress(args):
                     q_bpp_per_im = float(q_bpp.item()) if type(q_bpp) == torch.Tensor else float(q_bpp)
 
                 fname = os.path.join(args.output_dir, "{}_RECON_{:.3f}bpp.png".format(filenames[subidx], q_bpp_per_im))
-                torchvision.utils.save_image(reconstruction[subidx], fname, normalize=True)
+                #TODO save must be done for special format (for example : L8 or L16)
+                #torchvision.utils.save_image(reconstruction[subidx], fname, normalize=True)
+                save_image_custom(reconstruction[subidx], fname, output_mode="L16", normalize=True)
                 output_filenames_total.append(fname)
 
             bpp_total[n:n + B] = bpp.data
@@ -240,6 +250,63 @@ def compress_and_decompress(args):
     logger.info('Time elapsed: {:.3f} s'.format(delta_t))
     logger.info('Rate: {:.3f} Images / s:'.format(float(N) / delta_t))
 
+@torch.no_grad()
+def save_image_custom(
+    tensor: Union[torch.Tensor, List[torch.Tensor]],
+    fp: Union[str, pathlib.Path, BinaryIO],
+    output_mode : Optional[str] = None,
+    format: Optional[str] = None,
+    **kwargs,
+) -> None:
+    """
+    Save a given Tensor into an image file.
+
+    Args:
+        tensor (Tensor or list): Image to be saved. If given a mini-batch tensor,
+            saves the tensor as a grid of images by calling ``make_grid``.
+        fp (string or file object): A filename or a file object
+        output_mode (Optional) = None by default, will make values range between 0 and 255 then save to specified format, L8 to 1 chan 8bit output, L16 for 1chan 16bit output,
+        format(Optional):  If omitted, the format to use is determined from the filename extension.
+            If a file object was used instead of a filename, this parameter should always be used.
+        **kwargs: Other arguments are documented in ``make_grid``.
+    """
+
+    if not torch.jit.is_scripting() and not torch.jit.is_tracing():
+        _log_api_usage_once(save_image_custom)
+    print("---save_image_custom tensor before make_grid = ", tensor.to("cpu").numpy().shape)
+    grid = make_grid(tensor, **kwargs)
+    print("---save_image_custom tensor after make_grid = ", grid.to("cpu").numpy().shape)
+
+    match output_mode:
+        case None :
+            # Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer
+            print("---save_image_custom ndarr before modif = ", grid.to("cpu").numpy())
+            print("---save_image_custom ndarr before modif shape = ", grid.to("cpu").numpy().shape)
+            ndarr = grid.mul(255).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
+            print("---save_image_custom ndarr after modif = ", ndarr)
+            print("---save_image_custom ndarr after modif shape = ", ndarr.shape)
+            im = Image.fromarray(ndarr)
+        case "L8" :
+            # Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer
+            print("---save_image_custom ndarr before modif = ", grid.to("cpu").numpy())
+            print("---save_image_custom ndarr before modif shape = ", grid.to("cpu").numpy().shape)
+            ndarr = (grid.mul(255)/3).sum(dim=0).clamp_(0, 255).to("cpu", torch.uint8).numpy()
+            print("---save_image_custom ndarr after modif = ",ndarr)
+            print("---save_image_custom ndarr after modif shape = ", ndarr.shape)
+            """if ndarr.shape[-1] > 1:
+                ndarr = ndarr.squeeze(-1)"""
+            im = Image.fromarray(ndarr, mode="L")
+        case "L16" :
+            # Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer
+            print("---save_image_custom decompression to L16")
+            print("---save_image_custom ndarr before modif = ", grid.to("cpu").numpy())
+            print("---save_image_custom ndarr before modif shape = ", grid.to("cpu").numpy().shape)
+            ndarr = (grid[0].mul(255 * 255)).clamp_(0, 255 * 255).to("cpu", torch.uint16).numpy()
+            #ndarr = (grid.mul(255*255)/3).sum(dim=0).add_(0.5).clamp_(0, 255*255).to("cpu", torch.uint16).numpy()
+            print("---save_image_custom ndarr after modif = ", ndarr)
+            print("---save_image_custom ndarr after modif shape = ", ndarr.shape)
+            im = Image.fromarray(ndarr, mode="I;16")
+    im.save(fp, format=format)
 
 def main(**kwargs):
     description = "Compresses batch of images using learned model specified via -ckpt argument."
@@ -263,7 +330,7 @@ def main(**kwargs):
 
     assert len(input_images) > 0, 'No valid image files found in supplied directory!'
 
-    print('Input images')
+    #print('Input images')
     pprint(input_images)
     compress_and_decompress(args)
 

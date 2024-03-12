@@ -20,10 +20,16 @@ NUM_DATASET_WORKERS = 4
 SCALE_MIN = 0.75
 SCALE_MAX = 0.95
 DATASETS_DICT = {
-    "oid7_rgb_10": "OID7_RGB8", "oid7_rgb_100": "OID7_RGB8", "oid7_rgb_1000": "OID7_RGB8",
-    "oid7_rgb_10000": "OID7_RGB8",
+    "oid7_rgb8_10": "OID7_RGB8", "oid7_rgb8_100": "OID7_RGB8", "oid7_rgb8_1000": "OID7_RGB8",
+    "oid7_rgb8_10000": "OID7_RGB8",
 
-    "oid7_l8_10": "OID7_L8", "oid7_l8_100": "OID7_L8",
+    "oid7_rgb8_to_lll8_100": "OID7_RGB8_TO_LLL8","oid7_rgb8_to_lll8_10": "OID7_RGB8_TO_LLL8",
+
+    "oid7_l8_10": "OID7_L8", "oid7_l8_100": "OID7_L8", "oid7_l8_1000": "OID7_L8","oid7_l8_10000": "OID7_L8",
+
+    "oid7_l16_10": "OID7_L16", "oid7_l16_100": "OID7_L16", "oid7_l16_1000": "OID7_L16", "oid7_l16_10000": "OID7_L16",
+
+    "oid7_lLL8_10": "OID7_LLL8", "oid7_lll8_100": "OID7_LLL8", "oid7_lll8_1000": "OID7_LLL8","oid7_lll8_10000": "OID7_LLL8",
 
     "openimages": "OpenImages", "cityscapes": "CityScapes",
 
@@ -57,7 +63,7 @@ def exception_collate_fn(batch):
 
 
 def get_dataloaders(dataset, mode='train', root=None, shuffle=True, pin_memory=True,
-                    batch_size=8, logger=logging.getLogger(__name__), normalize=False, **kwargs):
+                    batch_size=8, logger=logging.getLogger(__name__), normalize=False,data_type=None, **kwargs):
     """A generic data loader
 
     Parameters
@@ -75,9 +81,9 @@ def get_dataloaders(dataset, mode='train', root=None, shuffle=True, pin_memory=T
     Dataset = get_dataset(dataset)
 
     if root is None:
-        dataset = Dataset(logger=logger, mode=mode, normalize=normalize, **kwargs)
+        dataset = Dataset(logger=logger, mode=mode, normalize=normalize,dtype=data_type, **kwargs)
     else:
-        dataset = Dataset(root=root, logger=logger, mode=mode, normalize=normalize, **kwargs)
+        dataset = Dataset(root=root, logger=logger, mode=mode, normalize=normalize,dtype=data_type, **kwargs)
 
     return DataLoader(dataset,
                       batch_size=batch_size,
@@ -123,7 +129,7 @@ class BaseDataset(Dataset, abc.ABC):
         return tuple(self.imgs.size())
 
     @abc.abstractmethod
-    def __getitem__(self, idx):
+    def __getitem__(self, idx, dtype=None):
         """Get the image of `idx`.
 
         Return
@@ -158,11 +164,12 @@ class Evaluation(BaseDataset):
         transforms_list = [transforms.ToTensor()]
 
         if self.normalize is True:
+            print("EVALUATION doing transform.Normalize")
             transforms_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
         return transforms.Compose(transforms_list)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx, dtype=None):
         """ TODO: This definitely needs to be optimized.
         Get the image of `idx`
 
@@ -178,19 +185,114 @@ class Evaluation(BaseDataset):
         filesize = os.path.getsize(img_path)
         try:
             img = PIL.Image.open(img_path)
+            # Print min, max, and dtype of the image
+            """print(f"EVALUATION GETITEM Min pixel value: {img.getextrema()[0][0]}")
+            print(f"EVALUATION GETITEM Max pixel value: {img.getextrema()[1][0]}")
+            print(f"EVALUATION GETITEM Image dtype: {img.mode}")"""
+
+            #TODO this part is used to open compressed images and decompress EVALUATION (need to adapt it to various formats)
+            # we may need to change transforms so that the uint16 input data really convert well to 0-1 data range
             #img = img.convert('RGB')
             W, H = img.size  # slightly confusing
             bpp = filesize * 8. / (H * W)
 
             test_transform = self._transforms()
             transformed = test_transform(img)
+            print("dataset_type = ",dtype)
+
+            """ if args.dataset_type["dtype"] == "L16" :
+                #print("datatype = L16, we normalize without totensor")
+                transformed = transformed/(255*255)"""
+            transformed = transformed / (255 * 255)
+            #else:
+            #print("datatype != L16 normalization done through totensor")
         except:
             print('Error reading input images!')
             return None
+        img_tensor = transforms.ToTensor()(img)
+        print("\n\nEVALUATION img shape = ", img_tensor.size())
+        # Print min, max, and dtype of the tensor
+        print("Min value: ", torch.min(img_tensor))
+        print("Max value: ", torch.max(img_tensor))
+        print("img dtype: ", img_tensor.dtype)
+        print("EVALUATION transformed_cpu shape = ", transformed.size())
+        # Print min, max, and dtype of the tensor
+        print("Min value: ",torch.min(transformed))
+        print("Max value: ",torch.max(transformed))
+        print("Tensor dtype: ",transformed.dtype)
 
+        #print("transformed_cpu = ", transformed)
         return transformed, bpp, filename
 
+class Evaluation_V2(BaseDataset):
+    """
+    Parameters
+    ----------
+    root : string
+        Root directory of dataset.
 
+    """
+
+    def __init__(self, root=os.path.join(DIR, 'data'), normalize=False, **kwargs):
+        super().__init__(root, [transforms.ToTensor()], **kwargs)
+
+        self.imgs = glob.glob(os.path.join(root, '*.jpg'))
+        self.imgs += glob.glob(os.path.join(root, '*.png'))
+
+        self.normalize = normalize
+
+    def _transforms(self):
+        """
+        Up(down)scale and randomly crop to `crop_size` x `crop_size`
+        """
+        transforms_list = [transforms.ToTensor()]
+
+        if self.normalize is True:
+            print("EVALUATION doing transform.Normalize")
+            transforms_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+
+        return transforms.Compose(transforms_list)
+
+    def __getitem__(self, idx):
+        img_path = self.imgs[idx]
+        filename = os.path.splitext(os.path.basename(img_path))[0]
+        filesize = os.path.getsize(img_path)
+
+        try:
+            img = PIL.Image.open(img_path)
+
+            # Assuming the image is uint16, normalize it to [0, 1]
+            img_array = np.array(img, dtype=np.uint16)
+            img_array = img_array / np.iinfo(np.uint16).max  # Normalize to [0, 1]
+
+            # Print min, max, and dtype of the image
+            """print(f"EVALUATION GETITEM Min pixel value: {img_array.min()}")
+            print(f"EVALUATION GETITEM Max pixel value: {img_array.max()}")
+            print(f"EVALUATION GETITEM Image dtype: {img.mode}")"""
+
+            W, H = img.size
+            bpp = filesize * 8. / (H * W)
+
+            test_transform = self._transforms()
+            transformed = test_transform(img_array)
+
+            # Optionally, you may want to adjust the transformed data if needed.
+
+            return transformed
+
+        except Exception as e:
+            # Handle exceptions, e.g., print an error message or log it.
+            print(f"Error loading image at index {idx}: {e}")
+
+
+        print("EVALUATION transformed_cpu shape = ", transformed.size())
+        # Print min, max, and dtype of the tensor
+        print("Min value: ",torch.min(transformed))
+        print("Max value: ",torch.max(transformed))
+        print("Tensor dtype: ",transformed.dtype)
+
+        #print("transformed_cpu = ", transformed)
+        return transformed, bpp, filename
 class OpenImages(BaseDataset):
     """OpenImages dataset from [1].
 
@@ -374,6 +476,97 @@ class OID7_RGB8(BaseDataset):
         # in [0.,1.] and reshape to (C x H x W)
         return transformed, bpp
 
+class OID7_LLL8(BaseDataset):
+    """OpenImages dataset from [1].
+
+    Parameters
+    ----------
+    root : string
+        Root directory of dataset.
+
+    References
+    ----------
+    [1] https://storage.googleapis.com/openimages/web/factsfigures.html
+
+    """
+    files = {"train": "train", "test": "test", "val": "validation"}
+
+    def __init__(self, root=os.path.join(DIR, 'output'), mode='train', crop_size=256,
+                 normalize=False, **kwargs):
+        super().__init__(root, [transforms.ToTensor()], **kwargs)
+
+        if mode == 'train':
+            data_dir = self.train_data
+        elif mode == 'validation':
+            data_dir = self.val_data
+        else:
+            raise ValueError('Unknown mode!')
+
+        self.imgs = glob.glob(os.path.join(data_dir, '*.jpg'))
+        self.imgs += glob.glob(os.path.join(data_dir, '*.png'))
+
+        self.crop_size = crop_size
+        self.image_dims = (3, self.crop_size, self.crop_size)
+        self.scale_min = SCALE_MIN
+        self.scale_max = SCALE_MAX
+        self.normalize = normalize
+
+    def _transforms(self, scale, H, W):
+        """
+        Up(down)scale and randomly crop to `crop_size` x `crop_size`
+        """
+        transforms_list = [  # transforms.ToPILImage(),
+            transforms.RandomHorizontalFlip(),
+            transforms.Resize((math.ceil(scale * H), math.ceil(scale * W))),
+            transforms.RandomCrop(self.crop_size),
+            transforms.ToTensor()]
+
+        if self.normalize is True:
+            transforms_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+
+        return transforms.Compose(transforms_list)
+
+    def __getitem__(self, idx):
+        """ TODO: This definitely needs to be optimized.
+        Get the image of `idx`
+
+        Return
+        ------
+        sample : torch.Tensor
+            Tensor in [0.,1.] of shape `img_size`.
+
+        """
+        # img values already between 0 and 255
+        img_path = self.imgs[idx]
+        filesize = os.path.getsize(img_path)
+        try:
+            # This is faster but less convenient
+            # H X W X C `ndarray`
+            # img = imread(img_path)
+            # img_dims = img.shape
+            # H, W = img_dims[0], img_dims[1]
+            # PIL
+            img = PIL.Image.open(img_path)
+            img = img.convert('RGB')
+            W, H = img.size  # slightly confusing
+            bpp = filesize * 8. / (H * W)
+
+            shortest_side_length = min(H, W)
+
+            minimum_scale_factor = float(self.crop_size) / float(shortest_side_length)
+            scale_low = max(minimum_scale_factor, self.scale_min)
+            scale_high = max(scale_low, self.scale_max)
+            scale = np.random.uniform(scale_low, scale_high)
+
+            dynamic_transform = self._transforms(scale, H, W)
+            transformed = dynamic_transform(img)
+        except:
+            return None
+
+        # apply random scaling + crop, put each pixel
+        # in [0.,1.] and reshape to (C x H x W)
+        return transformed, bpp
+
 
 class OID7_L8(BaseDataset):
     """OpenImages dataset from [1].
@@ -466,6 +659,229 @@ class OID7_L8(BaseDataset):
 
         # apply random scaling + crop, put each pixel
         # in [0.,1.] and reshape to (C x H x W)
+        return transformed, bpp
+
+class OID7_L16(BaseDataset):
+    """OpenImages dataset from [1].
+
+    Parameters
+    ----------
+    root : string
+        Root directory of dataset.
+
+    References
+    ----------
+    [1] https://storage.googleapis.com/openimages/web/factsfigures.html
+
+    """
+    files = {"train": "train", "test": "test", "val": "validation"}
+
+    def __init__(self, root=os.path.join(DIR, 'output'), mode='train', crop_size=256,
+                 normalize=False, **kwargs):
+        super().__init__(root, [transforms.ToTensor()], **kwargs)
+
+        if mode == 'train':
+            data_dir = self.train_data
+        elif mode == 'validation':
+            data_dir = self.val_data
+        else:
+            raise ValueError('Unknown mode!')
+
+        self.imgs = glob.glob(os.path.join(data_dir, '*.jpg'))
+        self.imgs += glob.glob(os.path.join(data_dir, '*.png'))
+
+        self.crop_size = crop_size
+        self.image_dims = (1, self.crop_size, self.crop_size)
+        self.scale_min = SCALE_MIN
+        self.scale_max = SCALE_MAX
+        self.normalize = normalize
+
+    def _transforms(self, scale, H, W):
+        """
+        Up(down)scale and randomly crop to `crop_size` x `crop_size`
+        """
+        transforms_list = [  # transforms.ToPILImage(),
+            transforms.RandomHorizontalFlip(),
+            transforms.Resize((math.ceil(scale * H), math.ceil(scale * W))),
+            transforms.RandomCrop(self.crop_size)
+        ]
+
+        if self.normalize is True:
+            transforms_list += [transforms.Normalize((0.5), (0.5))]
+
+        return transforms.Compose(transforms_list)
+
+    def __getitem__(self, idx):
+        """ TODO: This definitely needs to be optimized.
+        Get the image of `idx`
+
+        Return
+        ------
+        sample : torch.Tensor
+            Tensor in [0.,1.] of shape `img_size`.
+
+        """
+        # img values in uint16 , ToTensor only works for uint8 , need to adapt it
+        img_path = self.imgs[idx]
+        filesize = os.path.getsize(img_path)
+        try:
+            # This is faster but less convenient
+            # H X W X C `ndarray`
+            # img = imread(img_path)
+            # img_dims = img.shape
+            # H, W = img_dims[0], img_dims[1]
+            # PIL
+            img = PIL.Image.open(img_path)
+            """img_array = np.array(img)
+            img_array = np.clip(img_array, 0, 255)  # Normalizing values between 0 and 255
+            img = PIL.Image.fromarray(np.uint8(img_array))"""
+            W, H = img.size  # slightly confusing
+            bpp = filesize * 8. / (H * W)
+
+            shortest_side_length = min(H, W)
+
+            minimum_scale_factor = float(self.crop_size) / float(shortest_side_length)
+            scale_low = max(minimum_scale_factor, self.scale_min)
+            scale_high = max(scale_low, self.scale_max)
+            scale = np.random.uniform(scale_low, scale_high)
+
+            dynamic_transform = self._transforms(scale, H, W)
+            transformed = dynamic_transform(img)
+
+            img_array = np.array(transformed)
+            # Normalisation entre -1 et 1
+            transformed = torch.from_numpy(img_array).float().unsqueeze(
+                0) / 65535.0  # torch.tensor(img_array, dtype=torch.float32) / 65535.0
+            # transformed = 2 * transformed - 1
+
+            # print("img shape = ", img.size())
+            # print("transformed shape = ", transformed.size())
+            # print("transformed = ", transformed)
+        except:
+            return None
+
+        # apply random scaling + crop, put each pixel
+        # in [0.,1.] and reshape to (C x H x W)
+        # Get the shape of the image (height, width, channels) for a typical RGB image
+        #transformed_cpu = transformed.cpu()
+        """print("transformed_cpu shape = ", transformed_cpu.size())
+        print("transformed_cpu = ", transformed_cpu)"""
+        """print("OID7_L16 transformed_cpu shape = ", transformed.size())
+        # Print min, max, and dtype of the tensor
+        print(f"Min value: {torch.min(transformed)}")
+        print(f"Max value: {torch.max(transformed)}")
+        print(f"Tensor dtype: {transformed.dtype}")"""
+
+        return transformed, bpp
+
+
+class OID7_RGB8_TO_LLL8(BaseDataset):
+    """this will convert any image to rgb then back to L with the formula .
+    : L = R * 299/1000 + G * 587/1000 + B * 114/1000
+    Parameters
+    ----------
+    root : string
+        Root directory of dataset.
+
+    References
+    ----------
+    [1] https://storage.googleapis.com/openimages/web/factsfigures.html
+
+    """
+    files = {"train": "train", "test": "test", "val": "validation"}
+
+    def __init__(self, root=os.path.join(DIR, 'output'), mode='train', crop_size=256,
+                 normalize=False, **kwargs):
+        super().__init__(root, [transforms.ToTensor()], **kwargs)
+
+        if mode == 'train':
+            data_dir = self.train_data
+        elif mode == 'validation':
+            data_dir = self.val_data
+        else:
+            raise ValueError('Unknown mode!')
+
+        self.imgs = glob.glob(os.path.join(data_dir, '*.jpg'))
+        self.imgs += glob.glob(os.path.join(data_dir, '*.png'))
+
+        self.crop_size = crop_size
+        self.image_dims = (1, self.crop_size, self.crop_size)
+        self.scale_min = SCALE_MIN
+        self.scale_max = SCALE_MAX
+        self.normalize = normalize
+
+    def _transforms(self, scale, H, W):
+        """
+        Up(down)scale and randomly crop to `crop_size` x `crop_size`
+        """
+        transforms_list = [  # transforms.ToPILImage(),
+            transforms.RandomHorizontalFlip(),
+            transforms.Resize((math.ceil(scale * H), math.ceil(scale * W))),
+            transforms.RandomCrop(self.crop_size),
+            transforms.ToTensor()]
+
+        if self.normalize is True:
+            transforms_list += [transforms.Normalize((0.5), (0.5))]
+
+        return transforms.Compose(transforms_list)
+
+    def __getitem__(self, idx):
+        """ TODO: This definitely needs to be optimized.
+        Get the image of `idx`
+
+        Return
+        ------
+        sample : torch.Tensor
+            Tensor in [0.,1.] of shape `img_size`.
+
+        """
+        # img values already between 0 and 255
+
+        img_path = self.imgs[idx]
+        filesize = os.path.getsize(img_path)
+        try:
+            # This is faster but less convenient
+            # H X W X C `ndarray`
+            # img = imread(img_path)
+            # img_dims = img.shape
+            # H, W = img_dims[0], img_dims[1]
+            # PIL
+            img = PIL.Image.open(img_path)
+            # if img is only L, then it become LLL
+            img = img.convert('RGB')
+            r, g, b = img.split()
+            # Apply the L formula to each channel
+            new_r = np.array(r) * (299 / 1000)
+            new_g = np.array(g) * (587 / 1000)
+            new_b = np.array(b) * (114 / 1000)
+            l_array = new_r + new_b + new_g
+            # Convert the arrays back to Image objects
+            l = PIL.Image.fromarray(l_array.astype('uint8'))
+            # Merge the channels back into a new image
+            new_img = PIL.Image.merge('RGB', (l, l, l))
+
+            W, H = new_img.size  # slightly confusing
+            bpp = filesize * 8. / (H * W)
+
+            shortest_side_length = min(H, W)
+
+            minimum_scale_factor = float(self.crop_size) / float(shortest_side_length)
+            scale_low = max(minimum_scale_factor, self.scale_min)
+            scale_high = max(scale_low, self.scale_max)
+            scale = np.random.uniform(scale_low, scale_high)
+
+            dynamic_transform = self._transforms(scale, H, W)
+            transformed = dynamic_transform(new_img)
+            """print("img shape = ", img.size())
+            print("transformed shape = ", transformed.size())"""
+        except:
+            return None
+
+        # apply random scaling + crop, put each pixel
+        # in [0.,1.] and reshape to (C x H x W)
+        #transformed_cpu = transformed.cpu()
+        #print("transformed_cpu shape = ", transformed_cpu.size())
+        #print("transformed_cpu = ", transformed_cpu)
         return transformed, bpp
 
 

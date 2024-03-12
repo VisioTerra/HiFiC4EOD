@@ -1,3 +1,5 @@
+version de cuda installée : https://developer.nvidia.com/cuda-12-1-0-download-archive
+
 j'ai eu un probleme pour installer le package absl-py==0.9.0
 (Python version 2.7 or 3.4+ is required.) mais j'etais en python 3.11
 j'ai donc juste installer la derniere version de absl-py
@@ -64,7 +66,7 @@ pip install Pillow
 pip install PyWavelets
 pip install scikit-image
 pip install scipy
-pip install torch
+pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121
 pip install torchvision
 pip install tdqm
 pip install autograd

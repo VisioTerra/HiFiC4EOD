@@ -319,22 +319,23 @@ class Model(nn.Module):
         * Pass quantized latent through generator to obtain the reconstructed image.
           y* -> Generator() -> x*.
         """
-
+        print("--decompress ...")
         assert self.model_mode == ModelModes.EVALUATION and (self.training is False), (
             f'Set model mode to {ModelModes.EVALUATION} for decompression.')
-
+        print("--decompress decoding latents ...")
         latents_decoded = self.Hyperprior.decompress_forward(compression_output, device=utils.get_device())
-
+        print("--decompress reconstructing latents ...")
         # Use quantized latents as input to G
         reconstruction = self.Generator(latents_decoded)
-
+        print("--decompress reconstruction shape :",reconstruction.shape)
         if self.args.normalize_input_image is True:
             reconstruction = torch.tanh(reconstruction)
 
         # Undo padding
         image_dims = compression_output.spatial_shape
+        print("--decompress image dims = ",image_dims)
         reconstruction = reconstruction[:, :, :image_dims[0], :image_dims[1]]
-
+        print("--decompress reconstruction (reconstruction[:, :, :image_dims[0], :image_dims[1]]) shape  :", reconstruction.shape)
         if self.args.normalize_input_image is True:
             # [-1.,1.] -> [0.,1.]
             reconstruction = (reconstruction + 1.) / 2.

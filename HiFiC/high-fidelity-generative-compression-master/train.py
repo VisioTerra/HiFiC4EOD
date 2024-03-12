@@ -151,15 +151,15 @@ def train(args, model, train_loader, test_loader, device, logger, optimizers):
 
             if model.step_counter % args.log_interval == 1:
                 epoch_loss.append(compression_loss.item())
-                print("epoch_loss = ", epoch_loss)
+                #print("epoch_loss = ", epoch_loss)
                 mean_epoch_loss = np.mean(epoch_loss)
-                print("mean_epoch_loss = ", mean_epoch_loss)
+                #print("mean_epoch_loss = ", mean_epoch_loss)
                 best_loss = utils.log(model, storage, epoch, idx, mean_epoch_loss, compression_loss.item(),
                                 best_loss, start_time, epoch_start_time, batch_size=data.shape[0],
                                 avg_bpp=bpp.mean().item(), logger=logger, writer=train_writer)
                 try:
-                    print("test_loader_iter = ", test_loader_iter)
-                    print("test_loader_iter.type = ", type(test_loader_iter))
+                    #print("test_loader_iter = ", test_loader_iter)
+                    #print("test_loader_iter.type = ", type(test_loader_iter))
                     test_data, test_bpp = next(test_loader_iter)
                 except StopIteration:
                     test_loader_iter = iter(test_loader)

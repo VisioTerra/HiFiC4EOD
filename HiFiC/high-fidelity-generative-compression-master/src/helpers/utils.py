@@ -139,6 +139,7 @@ def save_model(model, optimizers, mean_epoch_loss, epoch, device, args, logger, 
     
     if not os.path.isfile(metadata_path):
         with open(metadata_path, 'w') as f:
+            print("METADAT = ",metadata)
             json.dump(metadata, f, indent=4, sort_keys=True)
             
     model_path = os.path.join(directory, '{}_epoch{}_idx{}_{}.pt'.format(model_name, epoch, model.step_counter, timestamp))
@@ -175,6 +176,8 @@ def load_model(save_path, logger, device, model_type=None, model_mode=None, curr
     loaded_args_d = checkpoint['args']
 
     args = Struct(**loaded_args_d)
+
+
 
     if current_args_d is not None:
         if silent is False:
@@ -373,7 +376,10 @@ def log(model, storage, epoch, idx, mean_epoch_loss, current_loss, best_loss, st
 
 
 def save_images(writer, step, real, decoded, fname):
-
+    """print("real = ", real)
+    print("decoded = ", decoded)
+    print("real shape = ", real.size())
+    print("decoded shape = ", decoded.size())"""
     imgs = torch.cat((real,decoded), dim=0)
     save_image(imgs, fname, nrow=4, normalize=True, scale_each=True)
     writer.add_images('gen_recon', imgs, step)
