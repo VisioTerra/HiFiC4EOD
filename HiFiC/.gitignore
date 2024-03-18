@@ -7,3 +7,6 @@ pytorch_nightly_venv/share/*
 /VT_utilities/open_images_dataset_downloader/input/*
 /VT_utilities/open_images_dataset_downloader/output/*
 /VT_utilities/tests_and_experiments/random.py
+/jupyter_notebook/.ipynb_checkpoints/
+/jupyter_notebook/models/
+/jupyter_notebook/output/

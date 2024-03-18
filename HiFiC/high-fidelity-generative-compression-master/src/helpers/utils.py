@@ -87,7 +87,7 @@ def setup_generic_signature(args, special_info):
     else:
         args.name = '{}_{}_{}'.format(args.dataset, special_info, time_signature)
 
-    print(args.name)
+    #print(args.name)
     args.snapshot = os.path.join('experiments', args.name)
     args.checkpoints_save = os.path.join(args.snapshot, 'checkpoints')
     args.figures_save = os.path.join(args.snapshot, 'figures')
@@ -139,7 +139,7 @@ def save_model(model, optimizers, mean_epoch_loss, epoch, device, args, logger, 
     
     if not os.path.isfile(metadata_path):
         with open(metadata_path, 'w') as f:
-            print("METADAT = ",metadata)
+            #print("METADAT = ",metadata)
             json.dump(metadata, f, indent=4, sort_keys=True)
             
     model_path = os.path.join(directory, '{}_epoch{}_idx{}_{}.pt'.format(model_name, epoch, model.step_counter, timestamp))

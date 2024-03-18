@@ -23,13 +23,14 @@ DATASETS_DICT = {
     "oid7_rgb8_10": "OID7_RGB8", "oid7_rgb8_100": "OID7_RGB8", "oid7_rgb8_1000": "OID7_RGB8",
     "oid7_rgb8_10000": "OID7_RGB8",
 
-    "oid7_rgb8_to_lll8_100": "OID7_RGB8_TO_LLL8","oid7_rgb8_to_lll8_10": "OID7_RGB8_TO_LLL8",
+    "oid7_rgb8_to_lll8_100": "OID7_RGB8_TO_LLL8", "oid7_rgb8_to_lll8_10": "OID7_RGB8_TO_LLL8",
 
-    "oid7_l8_10": "OID7_L8", "oid7_l8_100": "OID7_L8", "oid7_l8_1000": "OID7_L8","oid7_l8_10000": "OID7_L8",
+    "oid7_l8_10": "OID7_L8", "oid7_l8_100": "OID7_L8", "oid7_l8_1000": "OID7_L8", "oid7_l8_10000": "OID7_L8",
 
     "oid7_l16_10": "OID7_L16", "oid7_l16_100": "OID7_L16", "oid7_l16_1000": "OID7_L16", "oid7_l16_10000": "OID7_L16",
 
-    "oid7_lLL8_10": "OID7_LLL8", "oid7_lll8_100": "OID7_LLL8", "oid7_lll8_1000": "OID7_LLL8","oid7_lll8_10000": "OID7_LLL8",
+    "oid7_lLL8_10": "OID7_LLL8", "oid7_lll8_100": "OID7_LLL8", "oid7_lll8_1000": "OID7_LLL8",
+    "oid7_lll8_10000": "OID7_LLL8",
 
     "openimages": "OpenImages", "cityscapes": "CityScapes",
 
@@ -63,7 +64,7 @@ def exception_collate_fn(batch):
 
 
 def get_dataloaders(dataset, mode='train', root=None, shuffle=True, pin_memory=True,
-                    batch_size=8, logger=logging.getLogger(__name__), normalize=False,datatype= None, **kwargs):
+                    batch_size=8, logger=logging.getLogger(__name__), normalize=False, datatype=None, **kwargs):
     """A generic data loader
 
     Parameters
@@ -81,9 +82,9 @@ def get_dataloaders(dataset, mode='train', root=None, shuffle=True, pin_memory=T
     Dataset = get_dataset(dataset)
 
     if root is None:
-        dataset = Dataset(logger=logger, mode=mode, normalize=normalize,datatype=datatype, **kwargs)
+        dataset = Dataset(logger=logger, mode=mode, normalize=normalize, datatype=datatype, **kwargs)
     else:
-        dataset = Dataset(root=root, logger=logger, mode=mode, normalize=normalize,datatype=datatype, **kwargs)
+        dataset = Dataset(root=root, logger=logger, mode=mode, normalize=normalize, datatype=datatype, **kwargs)
 
     return DataLoader(dataset,
                       batch_size=batch_size,
@@ -149,11 +150,14 @@ class Evaluation(BaseDataset):
 
     """
 
-    def __init__(self, root=os.path.join(DIR, 'data'), normalize=False, datatype = None, **kwargs):
+    def __init__(self, root=os.path.join(DIR, 'data'), normalize=False, datatype=None, **kwargs):
         super().__init__(root, [transforms.ToTensor()], **kwargs)
 
+        self.imgs = glob.glob(os.path.join(root, '*.hfc'))
         self.imgs = glob.glob(os.path.join(root, '*.jpg'))
         self.imgs += glob.glob(os.path.join(root, '*.png'))
+        self.imgs += glob.glob(os.path.join(root, '*.tif'))
+        self.imgs += glob.glob(os.path.join(root, '*.tiff'))
         self.datatype = datatype
         self.normalize = normalize
 
@@ -164,7 +168,7 @@ class Evaluation(BaseDataset):
         transforms_list = [transforms.ToTensor()]
 
         if self.normalize is True:
-            print("EVALUATION doing transform.Normalize")
+            #print("EVALUATION doing transform.Normalize")
             transforms_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
         return transforms.Compose(transforms_list)
@@ -182,33 +186,43 @@ class Evaluation(BaseDataset):
         # img values already between 0 and 255
         img_path = self.imgs[idx]
         filename = os.path.splitext(os.path.basename(img_path))[0]
+        file_extension = os.path.splitext(os.path.basename(img_path))[1]
+        # dans le cas d'une decompression uniquement, on récupère juste le filename sans toucher a la data
+        #print("--- filename = ",filename)
+        if file_extension == ".hfc":
+            #print("--- only decompress is on (.hfc detected)")
+            return None, None, filename
         filesize = os.path.getsize(img_path)
         try:
+            _, extension = os.path.splitext(img_path)
+            #print("extension = ", extension)
+            #if extension == ".tif" or extension == ".tiff":
+            #    print("special treatement for handling tiff input images")
+            # else:
             img = PIL.Image.open(img_path)
             # Print min, max, and dtype of the image
             """print(f"EVALUATION GETITEM Min pixel value: {img.getextrema()[0][0]}")
             print(f"EVALUATION GETITEM Max pixel value: {img.getextrema()[1][0]}")
             print(f"EVALUATION GETITEM Image dtype: {img.mode}")"""
 
-            #TODO this part is used to open compressed images and decompress EVALUATION (need to adapt it to various formats)
+            # TODO this part is used to open compressed images and decompress EVALUATION (need to adapt it to various formats)
             # we may need to change transforms so that the uint16 input data really convert well to 0-1 data range
-            #img = img.convert('RGB')
+            # img = img.convert('RGB')
             W, H = img.size  # slightly confusing
             bpp = filesize * 8. / (H * W)
 
             test_transform = self._transforms()
             transformed = test_transform(img)
-            print("dataset_type = ",self.datatype)
-            match  self.datatype["dtype"] :
-                case "L16" :
+            print("dataset_type = ", self.datatype)
+            match self.datatype["dtype"]:
+                case "L16":
                     print("datatype = L16, totensor wont normalize, so we do it")
-                    transformed = transformed/(255*255)
+                    transformed = transformed / (255 * 255)
                 case _:
                     print("datatype = default, we do nothing")
 
-
-            #else:
-            #print("datatype != L16 normalization done through totensor")
+            # else:
+            # print("datatype != L16 normalization done through totensor")
         except:
             print('Error reading input images!')
             return None
@@ -220,12 +234,14 @@ class Evaluation(BaseDataset):
         print("img dtype: ", img_tensor.dtype)
         print("EVALUATION transformed_cpu shape = ", transformed.size())
         # Print min, max, and dtype of the tensor
-        print("Min value: ",torch.min(transformed))
-        print("Max value: ",torch.max(transformed))
-        print("Tensor dtype: ",transformed.dtype)
+        print("Min value: ", torch.min(transformed))
+        print("Max value: ", torch.max(transformed))
+        print("Tensor dtype: ", transformed.dtype)
+        print("extension = ", extension)
 
-        #print("transformed_cpu = ", transformed)
+        # print("transformed_cpu = ", transformed)
         return transformed, bpp, filename
+
 
 class Evaluation_V2(BaseDataset):
     """
@@ -257,8 +273,9 @@ class Evaluation_V2(BaseDataset):
         return transforms.Compose(transforms_list)
 
     def __getitem__(self, idx):
+
         img_path = self.imgs[idx]
-        filename = os.path.splitext(os.path.basename(img_path))[0]
+
         filesize = os.path.getsize(img_path)
 
         try:
@@ -287,15 +304,16 @@ class Evaluation_V2(BaseDataset):
             # Handle exceptions, e.g., print an error message or log it.
             print(f"Error loading image at index {idx}: {e}")
 
-
         print("EVALUATION transformed_cpu shape = ", transformed.size())
         # Print min, max, and dtype of the tensor
-        print("Min value: ",torch.min(transformed))
-        print("Max value: ",torch.max(transformed))
-        print("Tensor dtype: ",transformed.dtype)
+        print("Min value: ", torch.min(transformed))
+        print("Max value: ", torch.max(transformed))
+        print("Tensor dtype: ", transformed.dtype)
 
-        #print("transformed_cpu = ", transformed)
+        # print("transformed_cpu = ", transformed)
         return transformed, bpp, filename
+
+
 class OpenImages(BaseDataset):
     """OpenImages dataset from [1].
 
@@ -478,6 +496,7 @@ class OID7_RGB8(BaseDataset):
         # apply random scaling + crop, put each pixel
         # in [0.,1.] and reshape to (C x H x W)
         return transformed, bpp
+
 
 class OID7_LLL8(BaseDataset):
     """OpenImages dataset from [1].
@@ -664,6 +683,7 @@ class OID7_L8(BaseDataset):
         # in [0.,1.] and reshape to (C x H x W)
         return transformed, bpp
 
+
 class OID7_L16(BaseDataset):
     """OpenImages dataset from [1].
 
@@ -766,7 +786,7 @@ class OID7_L16(BaseDataset):
         # apply random scaling + crop, put each pixel
         # in [0.,1.] and reshape to (C x H x W)
         # Get the shape of the image (height, width, channels) for a typical RGB image
-        #transformed_cpu = transformed.cpu()
+        # transformed_cpu = transformed.cpu()
         """print("transformed_cpu shape = ", transformed_cpu.size())
         print("transformed_cpu = ", transformed_cpu)"""
         """print("OID7_L16 transformed_cpu shape = ", transformed.size())
@@ -882,9 +902,9 @@ class OID7_RGB8_TO_LLL8(BaseDataset):
 
         # apply random scaling + crop, put each pixel
         # in [0.,1.] and reshape to (C x H x W)
-        #transformed_cpu = transformed.cpu()
-        #print("transformed_cpu shape = ", transformed_cpu.size())
-        #print("transformed_cpu = ", transformed_cpu)
+        # transformed_cpu = transformed.cpu()
+        # print("transformed_cpu shape = ", transformed_cpu.size())
+        # print("transformed_cpu = ", transformed_cpu)
         return transformed, bpp
 
 

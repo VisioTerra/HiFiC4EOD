@@ -93,7 +93,7 @@ class args(object):
     """
     Shared config
     """
-    name = 'OID7_L8_1000'
+    name = 'OID7_L16_1000_high'
     silent = True
     n_epochs = 8  # each epoch will train images on (number of images in train/4, ex : 2500/epoch for 10000 img training dataset
     n_steps = 1e6
@@ -104,9 +104,11 @@ class args(object):
     multigpu = False
     dataset = Datasets.OID7_L16_10000
     dataset_path = DatasetPaths.OID7_L16_10000
-    data_type = DataType.RGB8
+    data_type = DataType.L16
     shuffle = True
-
+    #Evaluation compression/decompression params
+    only_compress = False
+    only_decompress = False
     # GAN params
     discriminator_steps = 0
     model_mode = ModelModes.TRAINING

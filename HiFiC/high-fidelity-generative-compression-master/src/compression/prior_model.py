@@ -344,13 +344,13 @@ if __name__ == '__main__':
     else:
         enc_shape = sum([len(enc) for enc in encoded])
 
-    print('Encoded shape', enc_shape)
+    #print('Encoded shape', enc_shape)
 
     decoded, decoded_raw = prior_entropy_model.decompress(encoded, means, scales, 
         broadcast_shape=toy_shape[2:], coding_shape=coding_shape, block_decode=use_blocks,
         vectorize=vectorize)
 
-    print('Decoded shape', decoded.shape)
+    #print('Decoded shape', decoded.shape)
     delta_t = time.time() - start_t
     print(f'Delta t {delta_t:.2f} s | ', torch.mean((decoded_raw == rounded).float()).item())
 

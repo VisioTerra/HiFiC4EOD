@@ -44,8 +44,8 @@ def prepare_dataloader(args, input_dir, output_dir, batch_size=1):
     input_images = glob.glob(os.path.join(input_dir, '*.jpg'))
     input_images += glob.glob(os.path.join(input_dir, '*.png'))
     assert len(input_images) > 0, 'No valid image files found in supplied directory!'
-    #print('Input images')
-    pprint(input_images)
+    # print('Input images')
+    #pprint(input_images)
 
     eval_loader = datasets.get_dataloaders('evaluation', root=input_dir, batch_size=batch_size,
                                            logger=None, shuffle=False, normalize=args.normalize_input_image)
@@ -107,6 +107,66 @@ def load_and_decompress(model, compressed_format_path, out_path):
     return reconstruction
 
 
+def decompress(args, compressed_images):
+    """
+    decompress files in input folder
+    """
+    # Reproducibility
+    make_deterministic()
+
+    # Load model
+    device = utils.get_device()
+    print("decompress working on device [", device, "] ")
+    logger = utils.logger_setup(logpath=os.path.join(args.image_dir, 'logs'), filepath=os.path.abspath(__file__))
+    loaded_args, model, _ = utils.load_model(args.ckpt_path, logger, device, model_mode=ModelModes.EVALUATION,
+                                             current_args_d=None, prediction=True, strict=False)
+
+    # Override current arguments with recorded
+    dictify = lambda x: dict((n, getattr(x, n)) for n in dir(x) if not (n.startswith('__') or 'logger' in n))
+    loaded_args_d, args_d = dictify(loaded_args), dictify(args)
+    loaded_args_d.update(args_d)
+    args = utils.Struct(**loaded_args_d)
+    logger.info(loaded_args_d)
+
+    # Build probability tables
+    logger.info('Building hyperprior probability tables...')
+    model.Hyperprior.hyperprior_entropy_model.build_tables()
+    logger.info('All tables built.')
+
+    # pas besoin d'eval loader (on travail directement sur la donnée compressée que nous allons décompresser 1 a 1
+    utils.makedirs(args.output_dir)
+
+    with torch.no_grad():
+        for compressd_image in tqdm(compressed_images, desc="decompression en cours", unit="image"):
+
+            # definition du nom du fichier de sortie, si il existe deja dans output, alors on continue et passe au prochain
+            file_name_without_extension = os.path.splitext(os.path.basename(compressd_image))[0]
+            fname = os.path.join(args.output_dir, "{}_RECON.png".format(file_name_without_extension))
+            if os.path.exists(fname):
+                print("image [",fname,"] already decompressed, getting to the next")
+                continue
+
+            #print("compressed images: ", compressd_image)
+            # only decompress => we open the already compressed file
+            #print("--- opening compressed data named [", compressd_image, "]")
+            compressed_output = compression_utils.load_compressed_format(compressd_image)
+            # Enregistre le temps avant l'exécution du code
+            temps_debut = time.time()
+            # Decompress the compressed output to obtain the reconstruction
+            reconstruction = model.decompress(compressed_output)
+            #print("reconstruction shape :", reconstruction.shape)
+            # Enregistre le temps après l'exécution du code
+            temps_fin = time.time()
+            temps_execution = temps_fin - temps_debut
+            logger.info(f"Le temps d'exécution est de {temps_execution} secondes pour la décompression.")
+
+            # construction du dossier output :
+
+            for subidx in range(reconstruction.shape[0]):
+                # torchvision.utils.save_image(reconstruction[subidx], fname, normalize=True)
+                save_image_custom(reconstruction[subidx], fname, output_mode=args.data_type["dtype"], normalize=True)
+
+
 def compress_and_decompress(args):
     # Reproducibility
     make_deterministic()
@@ -131,24 +191,29 @@ def compress_and_decompress(args):
     logger.info('All tables built.')
 
     eval_loader = datasets.get_dataloaders('evaluation', root=args.image_dir, batch_size=args.batch_size,
-                                           logger=logger, shuffle=False, normalize=args.normalize_input_image, datatype=args.data_type)
+                                           logger=logger, shuffle=False, normalize=args.normalize_input_image,
+                                           datatype=args.data_type)
 
     n, N = 0, len(eval_loader.dataset)
     input_filenames_total = list()
     output_filenames_total = list()
     bpp_total, q_bpp_total, LPIPS_total = torch.Tensor(N), torch.Tensor(N), torch.Tensor(N)
     MS_SSIM_total, PSNR_total = torch.Tensor(N), torch.Tensor(N)
-    max_value = 255. #args.data_type["range"] #l'original et le reconstruct son multipliés par range
+    max_value = 255.  # args.data_type["range"] #l'original et le reconstruct son multipliés par range
     MS_SSIM_func = metrics.MS_SSIM(data_range=max_value)
     utils.makedirs(args.output_dir)
 
-    logger.info('Starting compression...')
+    if args.only_decompress:
+        logger.info('--- Starting only decompression...')
+    else:
+        logger.info('--- Starting compression...')
+
     start_time = time.time()
 
     with torch.no_grad():
-
         for idx, (data, bpp, filenames) in enumerate(tqdm(eval_loader), 0):
             # Ensure the data is on the specified device and has the correct data type
+
             data = data.to(device, dtype=torch.float)
             B = data.size(0)
             input_filenames_total.extend(filenames)
@@ -157,8 +222,9 @@ def compress_and_decompress(args):
             if args.reconstruct is True:
                 # Reconstruction without compression
                 # Enregistre le temps avant l'exécution du code
+                #print("--- args.reconstruct is True")
                 temps_debut = time.time()
-                reconstruction, q_bpp = model(data, writeout=False,args=args)
+                reconstruction, q_bpp = model(data, writeout=False, args=args)
                 # Enregistre le temps après l'exécution du code
                 temps_fin = time.time()
 
@@ -171,7 +237,6 @@ def compress_and_decompress(args):
                 # Perform entropy coding
                 # Enregistre le temps avant l'exécution du code
                 temps_debut = time.time()
-
                 compressed_output = model.compress(data)
 
                 # Save the compressed format if specified
@@ -185,12 +250,15 @@ def compress_and_decompress(args):
                 temps_fin = time.time()
                 temps_execution = temps_fin - temps_debut
                 logger.info(f"Le temps d'exécution est de {temps_execution} secondes pour la compression.")
-
+                #print("only compress = ", args.only_compress)
+                if args.only_compress:
+                    # on ne souhaite pas de reconstruction, on passe à l'élément suivant
+                    continue
                 # Enregistre le temps avant l'exécution du code
                 temps_debut = time.time()
                 # Decompress the compressed output to obtain the reconstruction
                 reconstruction = model.decompress(compressed_output)
-                print("--compress_and_decompress reconstruction shape :", reconstruction.shape)
+                #print("--compress_and_decompress reconstruction shape :", reconstruction.shape)
 
                 # Enregistre le temps après l'exécution du code
                 temps_fin = time.time()
@@ -220,7 +288,7 @@ def compress_and_decompress(args):
                     q_bpp_per_im = float(q_bpp.item()) if type(q_bpp) == torch.Tensor else float(q_bpp)
 
                 fname = os.path.join(args.output_dir, "{}_RECON_{:.3f}bpp.png".format(filenames[subidx], q_bpp_per_im))
-                #torchvision.utils.save_image(reconstruction[subidx], fname, normalize=True)
+                # torchvision.utils.save_image(reconstruction[subidx], fname, normalize=True)
                 save_image_custom(reconstruction[subidx], fname, output_mode=args.data_type["dtype"], normalize=True)
                 output_filenames_total.append(fname)
 
@@ -229,6 +297,12 @@ def compress_and_decompress(args):
             LPIPS_total[n:n + B] = perceptual_loss.data
             n += B
 
+    if args.only_compress:
+        delta_t = time.time() - start_time
+        logger.info(
+            'compression Complete.')
+        logger.info('Time elapsed: {:.3f} s'.format(delta_t))
+        return
     df = pd.DataFrame([input_filenames_total, output_filenames_total]).T
     df.columns = ['input_filename', 'output_filename']
     df['bpp_original'] = bpp_total.cpu().numpy()
@@ -249,13 +323,14 @@ def compress_and_decompress(args):
     logger.info('Time elapsed: {:.3f} s'.format(delta_t))
     logger.info('Rate: {:.3f} Images / s:'.format(float(N) / delta_t))
 
+
 @torch.no_grad()
 def save_image_custom(
-    tensor: Union[torch.Tensor, List[torch.Tensor]],
-    fp: Union[str, pathlib.Path, BinaryIO],
-    output_mode : Optional[str] = None,
-    format: Optional[str] = None,
-    **kwargs,
+        tensor: Union[torch.Tensor, List[torch.Tensor]],
+        fp: Union[str, pathlib.Path, BinaryIO],
+        output_mode: Optional[str] = None,
+        format: Optional[str] = None,
+        **kwargs,
 ) -> None:
     """
     Save a given Tensor into an image file.
@@ -272,39 +347,40 @@ def save_image_custom(
 
     if not torch.jit.is_scripting() and not torch.jit.is_tracing():
         _log_api_usage_once(save_image_custom)
-    print("---save_image_custom tensor before make_grid = ", tensor.to("cpu").numpy().shape)
+    #print("---save_image_custom tensor before make_grid = ", tensor.to("cpu").numpy().shape)
     grid = make_grid(tensor, **kwargs)
-    print("---save_image_custom tensor after make_grid = ", grid.to("cpu").numpy().shape)
+    #print("---save_image_custom tensor after make_grid = ", grid.to("cpu").numpy().shape)
 
     match output_mode:
-        case None :
+        case None:
             # Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer
-            print("---save_image_custom DEFAULT ndarr before modif = ", grid.to("cpu").numpy())
-            print("---save_image_custom ndarr before modif shape = ", grid.to("cpu").numpy().shape)
+            #print("---save_image_custom DEFAULT ndarr before modif = ", grid.to("cpu").numpy())
+            #print("---save_image_custom ndarr before modif shape = ", grid.to("cpu").numpy().shape)
             ndarr = grid.mul(255).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
-            print("---save_image_custom ndarr after modif = ", ndarr)
-            print("---save_image_custom ndarr after modif shape = ", ndarr.shape)
+            #print("---save_image_custom ndarr after modif = ", ndarr)
+            #print("---save_image_custom ndarr after modif shape = ", ndarr.shape)
             im = Image.fromarray(ndarr)
-        case "L8" :
+        case "L8":
             # Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer
-            print("---save_image_custom L8 ndarr before modif = ", grid.to("cpu").numpy())
-            print("---save_image_custom ndarr before modif shape = ", grid.to("cpu").numpy().shape)
+            #print("---save_image_custom L8 ndarr before modif = ", grid.to("cpu").numpy())
+            #print("---save_image_custom ndarr before modif shape = ", grid.to("cpu").numpy().shape)
             ndarr = (grid[0].mul(255 * 255)).clamp_(0, 255).to("cpu", torch.uint8).numpy()
-            print("---save_image_custom ndarr after modif = ",ndarr)
-            print("---save_image_custom ndarr after modif shape = ", ndarr.shape)
+            #print("---save_image_custom ndarr after modif = ", ndarr)
+            #print("---save_image_custom ndarr after modif shape = ", ndarr.shape)
             """if ndarr.shape[-1] > 1:
                 ndarr = ndarr.squeeze(-1)"""
             im = Image.fromarray(ndarr, mode="L")
-        case "L16" :
+        case "L16":
             # Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer
-            print("---save_image_custom L16 ndarr before modif = ", grid.to("cpu").numpy())
-            print("---save_image_custom ndarr before modif shape = ", grid.to("cpu").numpy().shape)
+            #print("---save_image_custom L16 ndarr before modif = ", grid.to("cpu").numpy())
+            #print("---save_image_custom ndarr before modif shape = ", grid.to("cpu").numpy().shape)
             ndarr = (grid[0].mul(255 * 255)).clamp_(0, 255 * 255).to("cpu", torch.uint16).numpy()
-            #ndarr = (grid.mul(255*255)/3).sum(dim=0).add_(0.5).clamp_(0, 255*255).to("cpu", torch.uint16).numpy()
-            print("---save_image_custom ndarr after modif = ", ndarr)
-            print("---save_image_custom ndarr after modif shape = ", ndarr.shape)
+            # ndarr = (grid.mul(255*255)/3).sum(dim=0).add_(0.5).clamp_(0, 255*255).to("cpu", torch.uint16).numpy()
+            #print("---save_image_custom ndarr after modif = ", ndarr)
+            #print("---save_image_custom ndarr after modif shape = ", ndarr.shape)
             im = Image.fromarray(ndarr, mode="I;16")
     im.save(fp, format=format)
+
 
 def main(**kwargs):
     description = "Compresses batch of images using learned model specified via -ckpt argument."
@@ -321,18 +397,33 @@ def main(**kwargs):
                         action="store_true")
     parser.add_argument("-save", "--save", help="Save compressed format to disk.", action="store_true")
     parser.add_argument("-metrics", "--metrics", help="Evaluate compression metrics.", action="store_true")
+    # custom args
     parser.add_argument("-dt", "--data_type", help="RGB8, LLL8, L8 ou L16", default=hific_args.data_type)
+    parser.add_argument("-oc", "--only_compress", type=bool, default=False,
+                        help="True to just compress and save data, False for default (compress and reconstruct image). (false by default)")  # , action="reconstruct_true")
+    parser.add_argument("-od", "--only_decompress", type=bool, default=False,
+                        help="True to just decompress and save data, False for default (compress and reconstruct image) (false by default)")  # , action="reconstruct_true")
 
     args = parser.parse_args()
+    print("getting data from ",args.image_dir)
+    # only decompress images
+    if args.only_decompress:
+        print("only_decompress is true... getting the .hfc")
+        input_images = glob.glob(os.path.join(args.image_dir, '*.hfc'))
+        assert len(input_images) > 0, 'No valid image files found in supplied directory!'
+        decompress(args, input_images)
+        return
+    else:
+        input_images = glob.glob(os.path.join(args.image_dir, '*.jpg'))
+        input_images += glob.glob(os.path.join(args.image_dir, '*.png'))
+        input_images += glob.glob(os.path.join(args.image_dir, '*.tif'))
+        input_images += glob.glob(os.path.join(args.image_dir, '*.tiff'))
+        assert len(input_images) > 0, 'No valid image files found in supplied directory!'
 
-    input_images = glob.glob(os.path.join(args.image_dir, '*.jpg'))
-    input_images += glob.glob(os.path.join(args.image_dir, '*.png'))
+        print('Input images : ', input_images)
+        pprint(input_images)
 
-    assert len(input_images) > 0, 'No valid image files found in supplied directory!'
-
-    #print('Input images')
-    pprint(input_images)
-    compress_and_decompress(args)
+        compress_and_decompress(args)
 
 
 if __name__ == '__main__':

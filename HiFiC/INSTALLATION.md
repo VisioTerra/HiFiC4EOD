@@ -73,6 +73,7 @@ pip install autograd
 pip install tensorboard
 pip install pandas
 pip install tables
+pip install panel
 ```
 Une fois importés, vous pouvez vous rendre dans le dossier et vérifier que le code marche, refaire cette commande dès que vous aurez corriger tout le code :
 ```python
