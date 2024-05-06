@@ -10,3 +10,5 @@ pytorch_nightly_venv/share/*
 /jupyter_notebook/.ipynb_checkpoints/
 /jupyter_notebook/models/
 /jupyter_notebook/output/
+/VT_utilities/image_splitter/input/
+/VT_utilities/image_splitter/output/

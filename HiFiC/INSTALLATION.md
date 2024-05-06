@@ -84,6 +84,3 @@ _ImportError: cannot import name 'compare_ssim' from 'skimage.measure' (D:\Visio
 **devrait apparaitre dans le terminal, rendez vous dans perceptual loss , et supprimez :**
 `from skimage.measure import compare_ssim
 ` & `from skimage.measure import compare_ssim`
-
-Il faut maintenant
-des changements ont été apportés a l'appel des différents paquets (les imports ne fonctionnent pas encore)
