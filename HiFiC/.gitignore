@@ -14,3 +14,5 @@ pytorch_nightly_venv/share/*
 /VT_utilities/image_splitter/output/
 /pytorch_nightly_venv/
 /VT_utilities/tests_and_experiments/random_tests.py
+/.idea/
+/.ipynb_checkpoints/
