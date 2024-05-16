@@ -1,4 +1,4 @@
-# Usage Guide
+# Justin TAN's Usage Guide
 
 ## Details
 
@@ -132,8 +132,3 @@ The following additional papers were useful to understand implementation details
 3. Johannes Ballé, Valero Laparra, Eero P. Simoncelli. End-to-end optimization of nonlinear transform codes for perceptual quality. [arXiv 1607.05006 (2016)](https://arxiv.org/abs/1607.05006).
 4. Fabian Mentzer, Eirikur Agustsson, Michael Tschannen, Radu Timofte, Luc Van Gool. Practical Full Resolution Learned Lossless Image Compression. [arXiv 1811.12817 (2018)](https://arxiv.org/abs/1811.12817).
 
-## TODO (priority descending)
-
-* Investigate bit overhead in vectorized rANS implementation.
-* Include `torchac` support for entropy coding.
-* Rewrite rANS implementation for speed.

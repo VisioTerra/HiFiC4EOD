@@ -12,3 +12,4 @@ pytorch_nightly_venv/share/*
 /jupyter_notebook/output/
 /VT_utilities/image_splitter/input/
 /VT_utilities/image_splitter/output/
+/pytorch_nightly_venv/
